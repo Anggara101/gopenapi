@@ -1,0 +1,7 @@
+package models
+{{if .Description}}// {{.Name}} {{.Description}}
+{{end}}
+type {{.Name}} struct {
+	{{range .Fields}}{{.GoName}} {{.GoType}} `json:"{{.JSONName}}"` {{if .Description}}// {{.Description}} {{end}}
+	{{end}}
+}

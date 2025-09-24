@@ -1,0 +1,37 @@
+package api
+
+import (
+	"github.com/gin-gonic/gin"
+
+	"{{.ModelsPath}}"
+)
+
+type {{.Tag}}API struct { }
+
+// Register{{.Tag}}Routes register {{.Tag}} routes to gin engine
+func (api *{{.Tag}}API) Register{{.Tag}}Routes(r *gin.RouterGroup) {
+    {{range .APIs}}
+	r.{{.Method}}("{{.Path}}", api.{{.OperationID}})
+	{{end}}
+}
+
+{{range .APIs}}
+// {{.OperationID}} handle {{.Method}} {{.Path}}
+// {{.Description}}
+func (api *{{$.Tag}}API) {{.OperationID}}(c *gin.Context) {
+    {{if .RequestBody}}
+    var req models.{{.RequestBody.ModelName}}
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    {{end}}
+    {{if .Response}}
+    var resp models.{{.Response.ModelName}}
+    // TODO: Fill resp fields
+    c.JSON({{.Response.Status}}, resp)
+    {{else}}
+    c.JSON(http.StatusOK, gin.H{"status": "OK"})
+    {{end}}
+}
+{{end}}
