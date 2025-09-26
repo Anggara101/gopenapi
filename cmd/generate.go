@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"fmt"
+	"gopenapi/internal/config"
 	"gopenapi/internal/mapper"
 	"gopenapi/internal/templates"
 	"gopenapi/internal/utils"
@@ -18,13 +19,6 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/spf13/cobra"
 )
-
-var (
-	inputFile  string
-	outputFile string
-)
-
-const modelsPath = "/models"
 
 // generateCmd represents the generate command
 var generateCmd = &cobra.Command{
@@ -44,14 +38,6 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(generateCmd)
 
-	generateCmd.Flags().StringVarP(&inputFile, "input", "i", "", "Path to the OpenAPI spec")
-	generateCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Path to the output file")
-	err := generateCmd.MarkFlagRequired("input")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// generateCmd.PersistentFlags().String("foo", "", "A help for foo")
@@ -62,8 +48,12 @@ func init() {
 }
 
 func generate() {
+	cfg, err := config.ParseConfig("gopenapi.yaml")
+	if err != nil {
+		log.Fatalf("failed to parse config: %v", err)
+	}
 	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromFile(inputFile)
+	doc, err := loader.LoadFromFile(cfg.Input)
 	if err != nil {
 		log.Fatalf("failed to load OpenAPI spec: %v", err)
 	}
@@ -71,27 +61,27 @@ func generate() {
 	models := mapper.MapModelsFromSchemas(doc)
 	apis := mapper.MapAPIFromPaths(doc)
 
-	if outputFile != "" {
-		err = os.MkdirAll(outputFile, os.ModePerm)
+	if cfg.Output != "" {
+		err = os.MkdirAll(cfg.Output, os.ModePerm)
 		if err != nil {
 			log.Fatalf("failed to create output directory: %v", err)
 			return
 		}
 	}
-	err = os.MkdirAll(outputFile+modelsPath, os.ModePerm)
+	err = os.MkdirAll(cfg.Output+"/"+cfg.Packages.Models, os.ModePerm)
 	if err != nil {
 		log.Fatalf("failed to create output models directory: %v", err)
 		return
 	}
-	err = os.MkdirAll(outputFile+"/api", os.ModePerm)
+	err = os.MkdirAll(cfg.Output+"/"+cfg.Packages.API, os.ModePerm)
 	if err != nil {
 		log.Fatalf("failed to create output api directory: %v", err)
 		return
 	}
 
 	for _, model := range models {
-		fileName := strcase.ToSnake(model.Name) + "_model.go"
-		filePath := outputFile + "/models/" + fileName
+		fileName := strcase.ToSnake(model.Name) + cfg.FileNaming.ModelSuffix
+		filePath := cfg.Output + "/" + cfg.Packages.Models + "/" + fileName
 		renderTemplate("internal/templates/model.tmpl", filePath, model)
 		log.Printf("Generated %s", filePath)
 	}
@@ -102,11 +92,11 @@ func generate() {
 	}
 
 	for tag, api := range apis {
-		fileName := strcase.ToSnake(tag) + "_api.go"
-		filePath := outputFile + "/api/" + fileName
-		modelPath := moduleName + modelsPath
-		if outputFile != "" {
-			modelPath = moduleName + "/" + outputFile + modelsPath
+		fileName := strcase.ToSnake(tag) + cfg.FileNaming.APISuffix
+		filePath := cfg.Output + "/" + cfg.Packages.API + "/" + fileName
+		modelPath := moduleName + "/" + cfg.Packages.Models
+		if cfg.Output != "" {
+			modelPath = moduleName + "/" + cfg.Output + "/" + cfg.Packages.Models
 		}
 		data := struct {
 			Tag        string
